@@ -1,4 +1,4 @@
-﻿namespace Techies
+namespace Techies
 {
     using System;
     using System.Collections.Generic;
@@ -121,21 +121,33 @@
             panelText = new Font(
                 Drawing.Direct3DDevice9,
                 new FontDescription
-                    {
-                        FaceName = "Tahoma", Height = (int)(18 * monitorY), OutputPrecision = FontPrecision.Raster,
-                        Quality = FontQuality.ClearTypeNatural, CharacterSet = FontCharacterSet.Default, Italic = false,
-                        MipLevels = 0, PitchAndFamily = FontPitchAndFamily.Swiss, Weight = FontWeight.ExtraBold,
-                        Width = (int)(5 * monitor)
-                    });
+                {
+                    FaceName = "Tahoma",
+                    Height = (int)(18 * monitorY),
+                    OutputPrecision = FontPrecision.Raster,
+                    Quality = FontQuality.ClearTypeNatural,
+                    CharacterSet = FontCharacterSet.Default,
+                    Italic = false,
+                    MipLevels = 0,
+                    PitchAndFamily = FontPitchAndFamily.Swiss,
+                    Weight = FontWeight.ExtraBold,
+                    Width = (int)(5 * monitor)
+                });
             suicideDmgText = new Font(
                 Drawing.Direct3DDevice9,
                 new FontDescription
-                    {
-                        FaceName = "Tahoma", Height = (int)(13 * monitorY), OutputPrecision = FontPrecision.Raster,
-                        Quality = FontQuality.ClearTypeNatural, CharacterSet = FontCharacterSet.Hangul, Italic = false,
-                        MipLevels = 3, PitchAndFamily = FontPitchAndFamily.Modern, Weight = FontWeight.Heavy,
-                        Width = (int)(5 * monitor)
-                    });
+                {
+                    FaceName = "Tahoma",
+                    Height = (int)(13 * monitorY),
+                    OutputPrecision = FontPrecision.Raster,
+                    Quality = FontQuality.ClearTypeNatural,
+                    CharacterSet = FontCharacterSet.Hangul,
+                    Italic = false,
+                    MipLevels = 3,
+                    PitchAndFamily = FontPitchAndFamily.Modern,
+                    Weight = FontWeight.Heavy,
+                    Width = (int)(5 * monitor)
+                });
 
             Drawing.OnPreReset += Drawing_OnPreReset;
             Drawing.OnPostReset += Drawing_OnPostReset;
@@ -391,6 +403,10 @@
                         .Where(bomb => !remoteMinesDb.ContainsKey(bomb)))
                 {
                     remoteMinesDb.Add(bomb, remoteMinesDmg);
+                    if (bomb.Health < bomb.Health/2)
+                    {
+                        bomb.Spellbook.SpellQ.UseAbility();
+                    }
                 }
                 //enemyHeroes =
                 //    ObjectMgr.GetEntities<Hero>()
@@ -413,9 +429,18 @@
                 return;
             }
 
-            if (forceStaff == null && Menu.Item("useForceStaff").GetValue<bool>())
+            if (forceStaff == null && Menu.Item("useForceStaff").GetValue<bool>()
+                )
             {
                 forceStaff = me.Inventory.Items.FirstOrDefault(x => x.ClassID == ClassID.CDOTA_Item_ForceStaff);
+            }
+            var detonate = ObjectMgr.GetEntities<Unit>()
+                .Where(x => x.ClassID == ClassID.CDOTA_NPC_TechiesMines && x.Spellbook.Spell1 != null&& x.Spellbook.Spell1.IsValid && x.Spellbook.Spell1.CanBeCasted() && x.Health <= (x.MaximumHealth * 0.6) && x.IsAlive).FirstOrDefault();
+            if (detonate != null && Utils.SleepCheck(detonate.Handle.ToString()))
+            {
+                detonate.Spellbook.SpellQ.UseAbility();
+                Utils.Sleep(400, detonate.Handle.ToString());
+
             }
 
             var suicideLevel = suicideAttack.Level;
@@ -497,6 +522,9 @@
                         x != null && x.IsValid && !x.IsIllusion && x.Team == me.GetEnemyTeam() && x.IsAlive
                         && x.IsVisible && !x.IsMagicImmune()
                         && x.Modifiers.All(y => y.Name != "modifier_abaddon_borrowed_time")
+                        && x.Modifiers.All(y => y.Name != "modifier_dazzle_shallow_grave")
+                        && x.Modifiers.All(y => y.Name != "modifier_templar_assassin_refraction_absorb")
+
                         && Utils.SleepCheck(x.ClassID.ToString()));
             try
             {
@@ -518,12 +546,25 @@
                         }
                     }
                     //Game.PrintMessage((float)me.Health / me.MaximumHealth + " " + (float)Menu.Item("HPTreshold").GetValue<Slider>().Value / 100, MessageType.ChatMessage);
-                    if (Menu.Item("autoSuicide").GetValue<bool>() && suicideAttack.CanBeCasted()
-                        && (float)me.Health / me.MaximumHealth
-                        <= (float)Menu.Item("HPTreshold").GetValue<Slider>().Value / 100 && heroDistance < 400
-                        && suicideAttackLevel > 0 && me.IsAlive)
+                    var zHeroes =
+               ObjectMgr.GetEntities<Hero>()
+                   .Where(
+                       x =>
+                       x != null && x.IsValid && !x.IsIllusion && x.Team == me.GetEnemyTeam() && x.IsAlive
+                       && x.IsVisible && !x.IsMagicImmune()
+                       && x.Modifiers.All(y => y.Name != "modifier_abaddon_borrowed_time")
+                       && x.Modifiers.All(y => y.Name != "modifier_dazzle_shallow_grave")
+                       && x.Modifiers.All(y => y.Name != "modifier_templar_assassin_refraction_absorb"));
+                    foreach (var z in zHeroes)
                     {
-                        SuicideKillSteal(hero);
+                        if (Menu.Item("autoSuicide").GetValue<bool>() && suicideAttack.CanBeCasted()
+                            && (float)me.Health / me.MaximumHealth
+                            <= (float)Menu.Item("HPTreshold").GetValue<Slider>().Value / 100 && heroDistance < 400
+                            && suicideAttackLevel > 0 && me.IsAlive
+                            && z.Modifiers.All(y => y.Name != "modifier_dazzle_shallow_grave"))
+                        {
+                            SuicideKillSteal(hero);
+                        }
                     }
                     if (forceStaff == null || !Menu.Item("useForceStaff").GetValue<bool>()
                         || !(heroDistance <= forceStaff.CastRange) || !Utils.SleepCheck("forcestaff")
@@ -560,7 +601,7 @@
                         continue;
                     }
                     var dmg = CheckBombDamage(hero, forcePosition, bombsArray);
-                    if (!(dmg >= hero.Health))
+                    if (!(dmg >= hero.Health) && hero.Modifiers.All(y => y.Name != "modifier_dazzle_shallow_grave" &&  y.Name != "modifier_templar_assassin_refraction_absorb"))
                     {
                         continue;
                     }
@@ -617,12 +658,12 @@
                 foreach (var hero in
                     from play in players
                     select play.Hero
-                    into hero
-                    let sizeX = (float)HUDInfo.GetTopPanelSizeX(hero)
-                    let x = HUDInfo.GetTopPanelPosition(hero).X
-                    let sizey = HUDInfo.GetTopPanelSizeY(hero) * 1.4
-                    where Utils.IsUnderRectangle(Game.MouseScreenPosition, x, 0, sizeX, (float)(sizey * 1.4))
-                    select hero)
+                        into hero
+                        let sizeX = (float)HUDInfo.GetTopPanelSizeX(hero)
+                        let x = HUDInfo.GetTopPanelPosition(hero).X
+                        let sizey = HUDInfo.GetTopPanelSizeY(hero) * 1.4
+                        where Utils.IsUnderRectangle(Game.MouseScreenPosition, x, 0, sizeX, (float)(sizey * 1.4))
+                        select hero)
                 {
                     bool enabled;
                     if (enabledHeroes.TryGetValue(hero.ClassID, out enabled))
